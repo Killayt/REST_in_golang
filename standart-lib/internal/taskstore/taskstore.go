@@ -20,6 +20,10 @@ type TaskStore struct {
 	nextId int
 }
 
+type taskServer struct {
+	store *TaskStore
+}
+
 func New() *TaskStore {
 	ts := &TaskStore{}
 	ts.tasks = make(map[int]Task)
@@ -58,26 +62,67 @@ func (ts *TaskStore) GetTask(id int) (Task, error) {
 }
 
 func (ts *TaskStore) DeleteTask(id int) error {
-	return
+	ts.Lock()
+	defer ts.Unlock()
+
+	_, ok := ts.tasks[id]
+	if ok {
+		delete(ts.tasks, id)
+	} else {
+		fmt.Errorf("task with id=%d not found", id)
+	}
 }
 
 // DeleteAllTasks удаляет из хранилища все задачи.
 func (ts *TaskStore) DeleteAllTasks() error {
-	return
+	ts.Lock()
+	defer ts.Unlock()
+
+	ts.tasks = make(map[int]Task)
+	return nil
 }
 
 func (ts *TaskStore) GetAllTasks() []Task {
-	return
+	ts.Lock()
+	ts.Unlock()
+
+	allTasks := make([]Task, 0, len(ts.tasks))
+
+	for _, task := range ts.tasks {
+		allTasks = append(allTasks, task)
+	}
+	return allTasks
 }
 
 func (ts *TaskStore) GetTaskByTag(tag string) []Task {
-	return
+	ts.Lock()
+	ts.Unlock()
+
+	var tasks []Task
+
+	for _, task := range ts.tasks {
+		for _, taskTag := range task.Tags {
+			if taskTag == tag {
+				tasks = append(tasks, task)
+				continue
+			}
+		}
+	}
+
+	return tasks
 }
 
 func (ts *TaskStore) GetTasksByDueDate(year int, month time.Month, day int) []Task {
-	return
+	ts.Lock()
+	ts.Unlock()
+
+	var tasks []Task
+
+	for _, task := range ts.tasks {
+		y, m, d := task.Due.Date()
+		if y == year && m == month && d == day {
+			tasks = append(tasks, task)
+		}
+	}
+	return tasks
 }
-
-// corner taskHandler
-
-// func (ts *TaskServer)
