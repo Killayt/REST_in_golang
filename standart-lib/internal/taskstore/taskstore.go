@@ -13,15 +13,13 @@ type Task struct {
 	Due  time.Time `json:"due"`
 }
 
+// TaskStore is a simple in-memory database of tasks; TaskStore methods are
+// safe to call concurrently.
 type TaskStore struct {
 	sync.Mutex
 
 	tasks  map[int]Task
 	nextId int
-}
-
-type taskServer struct {
-	store *TaskStore
 }
 
 func New() *TaskStore {
@@ -31,6 +29,7 @@ func New() *TaskStore {
 	return ts
 }
 
+// CreateTask creates a new task in the store.
 func (ts *TaskStore) CreateTask(text string, tags []string, due time.Time) int {
 	ts.Lock()
 	defer ts.Unlock()
@@ -38,17 +37,17 @@ func (ts *TaskStore) CreateTask(text string, tags []string, due time.Time) int {
 	task := Task{
 		Id:   ts.nextId,
 		Text: text,
-		Due:  due,
-	}
+		Due:  due}
 	task.Tags = make([]string, len(tags))
 	copy(task.Tags, tags)
 
 	ts.tasks[ts.nextId] = task
 	ts.nextId++
 	return task.Id
-
 }
 
+// GetTask retrieves a task from the store, by id. If no such id exists, an
+// error is returned.
 func (ts *TaskStore) GetTask(id int) (Task, error) {
 	ts.Lock()
 	defer ts.Unlock()
@@ -61,19 +60,21 @@ func (ts *TaskStore) GetTask(id int) (Task, error) {
 	}
 }
 
+// DeleteTask deletes the task with the given id. If no such id exists, an error
+// is returned.
 func (ts *TaskStore) DeleteTask(id int) error {
 	ts.Lock()
 	defer ts.Unlock()
 
-	_, ok := ts.tasks[id]
-	if ok {
-		delete(ts.tasks, id)
-	} else {
-		fmt.Errorf("task with id=%d not found", id)
+	if _, ok := ts.tasks[id]; !ok {
+		return fmt.Errorf("task with id=%d not found", id)
 	}
+
+	delete(ts.tasks, id)
+	return nil
 }
 
-// DeleteAllTasks удаляет из хранилища все задачи.
+// DeleteAllTasks deletes all tasks in the store.
 func (ts *TaskStore) DeleteAllTasks() error {
 	ts.Lock()
 	defer ts.Unlock()
@@ -82,39 +83,43 @@ func (ts *TaskStore) DeleteAllTasks() error {
 	return nil
 }
 
+// GetAllTasks returns all the tasks in the store, in arbitrary order.
 func (ts *TaskStore) GetAllTasks() []Task {
 	ts.Lock()
-	ts.Unlock()
+	defer ts.Unlock()
 
 	allTasks := make([]Task, 0, len(ts.tasks))
-
 	for _, task := range ts.tasks {
 		allTasks = append(allTasks, task)
 	}
 	return allTasks
 }
 
-func (ts *TaskStore) GetTaskByTag(tag string) []Task {
+// GetTasksByTag returns all the tasks that have the given tag, in arbitrary
+// order.
+func (ts *TaskStore) GetTasksByTag(tag string) []Task {
 	ts.Lock()
-	ts.Unlock()
+	defer ts.Unlock()
 
 	var tasks []Task
 
+taskloop:
 	for _, task := range ts.tasks {
 		for _, taskTag := range task.Tags {
 			if taskTag == tag {
 				tasks = append(tasks, task)
-				continue
+				continue taskloop
 			}
 		}
 	}
-
 	return tasks
 }
 
+// GetTasksByDueDate returns all the tasks that have the given due date, in
+// arbitrary order.
 func (ts *TaskStore) GetTasksByDueDate(year int, month time.Month, day int) []Task {
 	ts.Lock()
-	ts.Unlock()
+	defer ts.Unlock()
 
 	var tasks []Task
 
@@ -124,5 +129,6 @@ func (ts *TaskStore) GetTasksByDueDate(year int, month time.Month, day int) []Ta
 			tasks = append(tasks, task)
 		}
 	}
+
 	return tasks
 }
